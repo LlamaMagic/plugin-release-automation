@@ -1,0 +1,146 @@
+name: Plugin Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      release_stage:
+        description: Release gate
+        required: true
+        default: validate
+        type: choice
+        options:
+          - validate
+          - staging
+          - production
+          - production-with-webhook
+      version:
+        description: Numeric version (required for manual runs)
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-__PRODUCT_ID__-${{ inputs.version || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  build-protect-package:
+    runs-on: windows-latest
+    environment: ${{ (github.event_name == 'push' || startsWith(inputs.release_stage, 'production')) && 'production' || 'staging' }}
+    outputs:
+      version: ${{ steps.request.outputs.version }}
+      release_stage: ${{ steps.request.outputs.release_stage }}
+      destination: ${{ steps.request.outputs.destination }}
+      archive_name: ${{ steps.build.outputs.archive_name }}
+      sha256: ${{ steps.build.outputs.sha256 }}
+
+    steps:
+      - name: Check out plugin
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Check out release automation
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: LlamaMagic/plugin-release-automation
+          ref: __AUTOMATION_REF__
+          path: .release-automation
+          persist-credentials: false
+
+      - name: Validate release request
+        id: request
+        shell: pwsh
+        env:
+          DISPATCH_STAGE: ${{ inputs.release_stage }}
+          DISPATCH_VERSION: ${{ inputs.version }}
+        run: |
+          $releaseStage = if ($env:GITHUB_EVENT_NAME -eq 'push') { 'production' } else { $env:DISPATCH_STAGE }
+          $allowedStages = @('validate', 'staging', 'production', 'production-with-webhook')
+          if ($releaseStage -notin $allowedStages) {
+            throw "Unsupported release stage '$releaseStage'."
+          }
+
+          $version = $env:DISPATCH_VERSION.Trim()
+          $isTag = $env:GITHUB_REF.StartsWith('refs/tags/', [StringComparison]::Ordinal)
+          $tagVersion = if ($isTag) { $env:GITHUB_REF_NAME -replace '^v', '' } else { '' }
+          if ([string]::IsNullOrWhiteSpace($version)) {
+            if (-not $isTag) {
+              throw 'A numeric version is required when the workflow is not running from a tag.'
+            }
+            $version = $tagVersion
+          }
+
+          $parsedVersion = $null
+          if (-not [Version]::TryParse($version, [ref] $parsedVersion)) {
+            throw "Version must be numeric, for example 26.730.1.0: $version"
+          }
+          if ($releaseStage.StartsWith('production')) {
+            if (-not $isTag -or $env:GITHUB_REF_NAME -notmatch '^v') {
+              throw 'Production stages must run from a v-prefixed Git tag.'
+            }
+            if ($version -ne $tagVersion) {
+              throw "Requested version '$version' does not match tag '$env:GITHUB_REF_NAME'."
+            }
+          }
+
+          $destination = if ($releaseStage.StartsWith('production')) { 'production' } else { 'staging' }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "release_stage=$releaseStage" >> $env:GITHUB_OUTPUT
+          "destination=$destination" >> $env:GITHUB_OUTPUT
+
+      - name: Build protected package
+        id: build
+        uses: ./.release-automation/.github/actions/build-protected-plugin
+        with:
+          product_id: __PRODUCT_ID__
+          project_file: __PROJECT_FILE__
+          reactor_project_file: __REACTOR_PROJECT_FILE__
+          build_output_directory: bin/Release/net8.0-windows
+          assembly_info_path: Properties/AssemblyInfo.cs
+          version: ${{ steps.request.outputs.version }}
+          reactor_license_base64: ${{ secrets.REACTOR_LICENSE_BASE64 }}
+
+  publish:
+    if: needs.build-protect-package.outputs.release_stage != 'validate'
+    needs: build-protect-package
+    runs-on: ubuntu-latest
+    environment: ${{ needs.build-protect-package.outputs.destination }}
+
+    steps:
+      - name: Check out release automation
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: LlamaMagic/plugin-release-automation
+          ref: __AUTOMATION_REF__
+          path: .release-automation
+          persist-credentials: false
+
+      - name: Publish and verify package
+        uses: ./.release-automation/.github/actions/publish-plugin
+        with:
+          product_id: __PRODUCT_ID__
+          version: ${{ needs.build-protect-package.outputs.version }}
+          archive_name: ${{ needs.build-protect-package.outputs.archive_name }}
+          sha256: ${{ needs.build-protect-package.outputs.sha256 }}
+          release_stage: ${{ needs.build-protect-package.outputs.release_stage }}
+          destination: ${{ needs.build-protect-package.outputs.destination }}
+          webhook_enabled: __WEBHOOK_ENABLED__
+          r2_access_key_id: ${{ secrets.R2_ACCESS_KEY_ID }}
+          r2_secret_access_key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          r2_endpoint: ${{ vars.R2_ENDPOINT }}
+          r2_bucket: ${{ vars.R2_BUCKET }}
+          r2_public_base_url: ${{ vars.R2_PUBLIC_BASE_URL }}
+          r2_object_prefix: ${{ vars.R2_OBJECT_PREFIX }}
+          tencent_secret_id: ${{ secrets.TENCENT_SECRET_ID }}
+          tencent_secret_key: ${{ secrets.TENCENT_SECRET_KEY }}
+          tencent_cos_bucket: ${{ vars.TENCENT_COS_BUCKET }}
+          tencent_cos_region: ${{ vars.TENCENT_COS_REGION }}
+          tencent_public_base_url: ${{ vars.TENCENT_PUBLIC_BASE_URL }}
+          update_webhook_key: ${{ secrets.UPDATE_WEBHOOK_KEY }}
+          update_product_name: ${{ vars.UPDATE_PRODUCT_NAME }}
+          call_admin_webhook: ${{ vars.CALL_ADMIN_WEBHOOK }}
+          github_token: ${{ github.token }}
