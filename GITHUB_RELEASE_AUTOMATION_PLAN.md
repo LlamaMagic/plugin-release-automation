@@ -22,8 +22,8 @@ Completed:
 - Added a non-deploying Manderville GitHub Actions build workflow.
 - Ran a full local Manderville Release build with `CI=true`: 0 errors.
 - Generated and validated a four-entry Manderville compatibility ZIP locally.
-- Opened Manderville draft PR `#1` and passed the complete reusable workflow on a GitHub-hosted
-  Windows runner.
+- Merged Manderville PR `#1`; both its PR run and post-merge `main` run passed the complete
+  reusable workflow on GitHub-hosted Windows runners.
 
 Not yet done:
 

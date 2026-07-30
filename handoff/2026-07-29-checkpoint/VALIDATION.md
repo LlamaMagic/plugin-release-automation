@@ -83,6 +83,11 @@ The Manderville pilot also passed the complete reusable workflow:
 - Package generation and exact contract validation: passed
 - Validation-artifact upload: passed
 
+After PR `#1` was squash-merged, the same workflow passed from default-branch commit
+`f265482f03b6d3500b6d22a928ff346f1d1be9dd`:
+
+- Run: `https://github.com/DomesticWarlord/MandervilleWeapons/actions/runs/30510789019`
+
 ## Not yet validated
 
 - .NET Reactor installation, license activation, and obfuscation on a runner.

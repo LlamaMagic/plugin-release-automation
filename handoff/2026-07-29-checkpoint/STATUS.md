@@ -36,11 +36,13 @@ Path: `C:\Users\domes\OneDrive\Documentos\GitHub\MandervilleWeapons`
 
 - Branch: `main`
 - Remote: `https://github.com/DomesticWarlord/MandervilleWeapons.git`
-- Pilot branch: `codex/release-automation-pilot`
-- Pilot commit: `142f6a9`
-- Draft PR: `https://github.com/DomesticWarlord/MandervilleWeapons/pull/1`
-- Reusable-workflow run: `https://github.com/DomesticWarlord/MandervilleWeapons/actions/runs/30510587152`
-- The complete GitHub-hosted build/package validation passed.
+- Current local branch: `main`, synchronized with `origin/main`
+- Merged PR: `https://github.com/DomesticWarlord/MandervilleWeapons/pull/1`
+- Main commit: `f265482f03b6d3500b6d22a928ff346f1d1be9dd`
+- PR workflow: `https://github.com/DomesticWarlord/MandervilleWeapons/actions/runs/30510587152`
+- Post-merge main workflow:
+  `https://github.com/DomesticWarlord/MandervilleWeapons/actions/runs/30510789019`
+- Both complete GitHub-hosted build/package validations passed.
 
 Changes in the project file:
 
