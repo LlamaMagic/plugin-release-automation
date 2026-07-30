@@ -70,8 +70,8 @@ try {
             }
         }
         $reactorProjects = @(Get-ChildItem -LiteralPath $productRoot -File -Filter '*.nrproj')
-        if ($reactorProjects.Count -ne 1) {
-            throw "Expected one Reactor project for $productId; found $($reactorProjects.Count)."
+        if ($reactorProjects.Count -ne 0) {
+            throw "Reactor project must be excluded for $productId; found $($reactorProjects.Count)."
         }
     }
 
@@ -101,10 +101,29 @@ try {
     }
 
     $bundlePath = Join-Path $extractionRoot 'automation-repository.bundle'
+    $bundleVerificationRepository = Join-Path $extractionRoot '.bundle-verification.git'
     $previousErrorActionPreference = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
     try {
-        $bundleOutput = @(& git bundle verify $bundlePath 2>&1 | ForEach-Object { "$_" })
+        $initOutput = @(
+            & git init --bare $bundleVerificationRepository 2>&1 |
+                ForEach-Object { "$_" }
+        )
+        $initExitCode = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+    if ($initExitCode -ne 0) {
+        throw "Failed to initialize the temporary Git bundle verification repository:`n$($initOutput -join "`n")"
+    }
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        $bundleOutput = @(
+            & git -C $bundleVerificationRepository bundle verify $bundlePath 2>&1 |
+                ForEach-Object { "$_" }
+        )
         $bundleExitCode = $LASTEXITCODE
     }
     finally {
@@ -134,6 +153,12 @@ try {
         if ($text -match '(?i)Webhook_key\s*=') {
             throw "Literal webhook credential assignment found: $($file.FullName)"
         }
+        if ($file.Extension -eq '.patch' -and $text -match '(?m)^GIT binary patch$') {
+            throw "Binary Git patch found: $($file.FullName)"
+        }
+        if ($file.Extension -eq '.patch' -and $text -match '(?m)^diff --git a/.+\.nrproj b/.+\.nrproj$') {
+            throw "Reactor project diff found: $($file.FullName)"
+        }
     }
 
     [pscustomobject]@{
@@ -148,7 +173,9 @@ try {
 finally {
     $resolvedExtraction = [System.IO.Path]::GetFullPath($extractionRoot)
     $systemTemp = [System.IO.Path]::GetFullPath([System.IO.Path]::GetTempPath())
-    if (-not $resolvedExtraction.StartsWith($systemTemp, [System.StringComparison]::OrdinalIgnoreCase)) {
+    $systemTempPrefix = $systemTemp.TrimEnd([char[]] @('\', '/')) +
+        [System.IO.Path]::DirectorySeparatorChar
+    if (-not $resolvedExtraction.StartsWith($systemTempPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
         throw "Refusing to remove unexpected extraction path: $resolvedExtraction"
     }
     if (Test-Path -LiteralPath $resolvedExtraction) {

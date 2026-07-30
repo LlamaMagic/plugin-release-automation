@@ -1,0 +1,422 @@
+name: Reusable plugin release
+
+on:
+  workflow_call:
+    inputs:
+      product_id:
+        required: true
+        type: string
+      project_file:
+        required: true
+        type: string
+      reactor_project_file:
+        required: true
+        type: string
+      build_output_directory:
+        required: true
+        type: string
+      assembly_info_path:
+        required: true
+        type: string
+      automation_repository:
+        required: true
+        type: string
+      automation_ref:
+        required: true
+        type: string
+      release_stage:
+        description: validate, staging, production, or production-with-webhook
+        required: true
+        type: string
+      version:
+        description: Numeric release version; must match the selected tag for production
+        required: false
+        default: ''
+        type: string
+    secrets:
+      REACTOR_LICENSE_BASE64:
+        required: true
+      R2_ACCESS_KEY_ID:
+        required: false
+      R2_SECRET_ACCESS_KEY:
+        required: false
+      TENCENT_SECRET_ID:
+        required: false
+      TENCENT_SECRET_KEY:
+        required: false
+      UPDATE_WEBHOOK_KEY:
+        required: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.repository }}-${{ inputs.product_id }}-${{ inputs.version || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  build-protect-package:
+    runs-on: windows-latest
+    environment: ${{ (inputs.release_stage == 'validate' || inputs.release_stage == 'staging') && 'staging' || 'production' }}
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+      archive_name: ${{ steps.release.outputs.archive_name }}
+      sha256: ${{ steps.package.outputs.sha256 }}
+      deployment_destination: ${{ steps.release.outputs.deployment_destination }}
+      webhook_enabled: ${{ steps.release.outputs.webhook_enabled }}
+
+    steps:
+      - name: Check out plugin
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Check out release automation
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: ${{ inputs.automation_repository }}
+          ref: ${{ inputs.automation_ref }}
+          path: .release-automation
+          persist-credentials: false
+
+      - name: Validate release request
+        id: release
+        shell: pwsh
+        env:
+          REQUESTED_STAGE: ${{ inputs.release_stage }}
+          REQUESTED_VERSION: ${{ inputs.version }}
+          PRODUCT_ID: ${{ inputs.product_id }}
+        run: |
+          $allowedStages = @('validate', 'staging', 'production', 'production-with-webhook')
+          if ($env:REQUESTED_STAGE -notin $allowedStages) {
+            throw "Unsupported release stage '$env:REQUESTED_STAGE'."
+          }
+
+          $version = $env:REQUESTED_VERSION.Trim()
+          $isTag = $env:GITHUB_REF.StartsWith('refs/tags/', [StringComparison]::Ordinal)
+          $tagVersion = if ($isTag) { $env:GITHUB_REF_NAME -replace '^v', '' } else { '' }
+
+          if ([string]::IsNullOrWhiteSpace($version)) {
+            if (-not $isTag) {
+              throw 'A numeric version is required when the workflow is not running from a tag.'
+            }
+            $version = $tagVersion
+          }
+
+          $parsedVersion = $null
+          if (-not [Version]::TryParse($version, [ref] $parsedVersion)) {
+            throw "Version must be numeric, for example 26.730.1.0: $version"
+          }
+
+          if ($env:REQUESTED_STAGE.StartsWith('production')) {
+            if (-not $isTag) {
+              throw 'Production stages must be dispatched from a v-prefixed Git tag.'
+            }
+            if ($env:GITHUB_REF_NAME -notmatch '^v') {
+              throw "Production tag must start with 'v': $env:GITHUB_REF_NAME"
+            }
+            if ($version -ne $tagVersion) {
+              throw "Requested version '$version' does not match tag '$env:GITHUB_REF_NAME'."
+            }
+          }
+
+          $configuration = Get-Content .\.release-automation\config\products.json -Raw | ConvertFrom-Json
+          $product = $configuration.products.PSObject.Properties[$env:PRODUCT_ID].Value
+          if ($null -eq $product) {
+            throw "Unknown product '$env:PRODUCT_ID'."
+          }
+
+          $destination = if ($env:REQUESTED_STAGE.StartsWith('production')) { 'production' } else { 'staging' }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "archive_name=$env:PRODUCT_ID-$version.zip" >> $env:GITHUB_OUTPUT
+          "deployment_destination=$destination" >> $env:GITHUB_OUTPUT
+          "webhook_enabled=$(([bool] $product.webhookEnabled).ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+
+      - name: Require Reactor license
+        shell: pwsh
+        env:
+          REACTOR_LICENSE: ${{ secrets.REACTOR_LICENSE_BASE64 }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:REACTOR_LICENSE)) {
+            throw 'REACTOR_LICENSE_BASE64 is not configured in the selected environment.'
+          }
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Set assembly version
+        shell: pwsh
+        run: >
+          .\.release-automation\scripts\Set-AssemblyVersion.ps1
+          -AssemblyInfoPath '${{ inputs.assembly_info_path }}'
+          -Version '${{ steps.release.outputs.version }}'
+
+      - name: Restore
+        shell: pwsh
+        run: >
+          dotnet restore '${{ inputs.project_file }}'
+          --source https://api.nuget.org/v3/index.json
+          --source https://gitea.llamamagic.net/api/packages/DomesticWarlord/nuget/index.json
+
+      - name: Build without legacy deployment
+        shell: pwsh
+        run: >
+          dotnet build '${{ inputs.project_file }}'
+          --configuration Release
+          --no-restore
+          -p:CI=true
+          -p:SkipPandaPostBuild=true
+          -p:SkipSquadronDiagnostic=true
+
+      - name: Install licensed .NET Reactor
+        uses: eziriz/dotnet-reactor-install-action@54eb29390b46233e50e29ff37481ffecae6c458a # v1.0.0
+        with:
+          license: ${{ secrets.REACTOR_LICENSE_BASE64 }}
+
+      - name: Create protected output directory
+        shell: pwsh
+        run: New-Item -ItemType Directory -Path .\protected -Force | Out-Null
+
+      - name: Protect plugin assembly
+        uses: eziriz/dotnet-reactor-run-action@7de216239308cc681dc6853d806cfbe38ae7b7b1 # v1.0.0
+        with:
+          project_file: ${{ inputs.reactor_project_file }}
+          input_path: ${{ inputs.build_output_directory }}/${{ inputs.product_id }}.dll
+          output_path: protected/${{ inputs.product_id }}.dll
+          additional_arguments: -licensed
+
+      - name: Validate Reactor output
+        shell: pwsh
+        run: >
+          .\.release-automation\scripts\Test-ProtectedAssembly.ps1
+          -OriginalAssemblyPath '${{ inputs.build_output_directory }}\${{ inputs.product_id }}.dll'
+          -ProtectedAssemblyPath '.\protected\${{ inputs.product_id }}.dll'
+
+      - name: Package protected assembly
+        shell: pwsh
+        run: >
+          .\.release-automation\scripts\Build-PluginPackage.ps1
+          -ConfigPath .\.release-automation\config\products.json
+          -ProductId '${{ inputs.product_id }}'
+          -RepositoryRoot .
+          -BuildOutputDirectory '${{ inputs.build_output_directory }}'
+          -AssemblyPath '.\protected\${{ inputs.product_id }}.dll'
+          -Version '${{ steps.release.outputs.version }}'
+          -ReleaseOutputDirectory .\artifacts
+
+      - name: Validate package contract
+        shell: pwsh
+        run: >
+          .\.release-automation\scripts\Test-PluginPackage.ps1
+          -ConfigPath .\.release-automation\config\products.json
+          -ProductId '${{ inputs.product_id }}'
+          -ArchivePath '.\artifacts\${{ steps.release.outputs.archive_name }}'
+          -ExpectedVersion '${{ steps.release.outputs.version }}'
+
+      - name: Capture package hash
+        id: package
+        shell: pwsh
+        run: |
+          $hash = (Get-FileHash '.\artifacts\${{ steps.release.outputs.archive_name }}' -Algorithm SHA256).Hash.ToLowerInvariant()
+          "sha256=$hash" >> $env:GITHUB_OUTPUT
+          if ($hash -ne (Get-Content '.\artifacts\${{ steps.release.outputs.archive_name }}.sha256' -Raw).Trim().Split()[0]) {
+            throw 'Package checksum sidecar does not match the archive.'
+          }
+
+      - name: Upload rollback artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: release-${{ inputs.product_id }}-${{ steps.release.outputs.version }}
+          path: |
+            artifacts/*.zip
+            artifacts/*.sha256
+          if-no-files-found: error
+
+  publish:
+    if: inputs.release_stage != 'validate'
+    needs: build-protect-package
+    runs-on: ubuntu-latest
+    environment: ${{ needs.build-protect-package.outputs.deployment_destination }}
+
+    steps:
+      - name: Check out release automation
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: ${{ inputs.automation_repository }}
+          ref: ${{ inputs.automation_ref }}
+          path: .release-automation
+          persist-credentials: false
+
+      - name: Download protected package
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: release-${{ inputs.product_id }}-${{ needs.build-protect-package.outputs.version }}
+          path: artifacts
+
+      - name: Validate deployment configuration
+        shell: pwsh
+        env:
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          TENCENT_SECRET_ID: ${{ secrets.TENCENT_SECRET_ID }}
+          TENCENT_SECRET_KEY: ${{ secrets.TENCENT_SECRET_KEY }}
+          R2_ENDPOINT: ${{ vars.R2_ENDPOINT }}
+          R2_BUCKET: ${{ vars.R2_BUCKET }}
+          R2_PUBLIC_BASE_URL: ${{ vars.R2_PUBLIC_BASE_URL }}
+          R2_OBJECT_PREFIX: ${{ vars.R2_OBJECT_PREFIX }}
+          TENCENT_COS_BUCKET: ${{ vars.TENCENT_COS_BUCKET }}
+          TENCENT_COS_REGION: ${{ vars.TENCENT_COS_REGION }}
+          TENCENT_PUBLIC_BASE_URL: ${{ vars.TENCENT_PUBLIC_BASE_URL }}
+        run: |
+          $required = @(
+            'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'TENCENT_SECRET_ID',
+            'TENCENT_SECRET_KEY', 'R2_ENDPOINT', 'R2_BUCKET', 'R2_PUBLIC_BASE_URL',
+            'R2_OBJECT_PREFIX', 'TENCENT_COS_BUCKET', 'TENCENT_COS_REGION',
+            'TENCENT_PUBLIC_BASE_URL'
+          )
+          $missing = @($required | Where-Object { [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($_)) })
+          if ($missing.Count) {
+            throw "Missing deployment configuration: $($missing -join ', ')"
+          }
+
+      - name: Prepare exact upload trees
+        id: upload
+        shell: pwsh
+        run: |
+          $result = .\.release-automation\scripts\New-ReleaseUploadTrees.ps1 `
+            -ArchivePath '.\artifacts\${{ needs.build-protect-package.outputs.archive_name }}' `
+            -Sha256Path '.\artifacts\${{ needs.build-protect-package.outputs.archive_name }}.sha256' `
+            -ProductId '${{ inputs.product_id }}' `
+            -Version '${{ needs.build-protect-package.outputs.version }}' `
+            -Destination '${{ needs.build-protect-package.outputs.deployment_destination }}' `
+            -ObjectPrefix '${{ vars.R2_OBJECT_PREFIX }}' `
+            -OutputRoot .\upload-trees
+          "object_key=$($result.VersionedObjectKey)" >> $env:GITHUB_OUTPUT
+
+      - name: Refuse conflicting immutable objects
+        shell: bash
+        env:
+          EXPECTED_SHA256: ${{ needs.build-protect-package.outputs.sha256 }}
+          R2_URL: ${{ vars.R2_PUBLIC_BASE_URL }}/${{ steps.upload.outputs.object_key }}
+          COS_URL: ${{ vars.TENCENT_PUBLIC_BASE_URL }}/${{ steps.upload.outputs.object_key }}
+        run: |
+          set -euo pipefail
+          for url in "$R2_URL" "$COS_URL"; do
+            status="$(curl --silent --show-error --location --output existing.zip --write-out '%{http_code}' "$url")"
+            if [ "$status" = "200" ]; then
+              actual="$(sha256sum existing.zip | awk '{print $1}')"
+              if [ "$actual" != "$EXPECTED_SHA256" ]; then
+                echo "::error::Immutable object already exists with a different checksum: $url"
+                exit 1
+              fi
+            elif [ "$status" != "404" ]; then
+              echo "::error::Unexpected preflight HTTP status $status for $url"
+              exit 1
+            fi
+          done
+
+      - name: Upload to Cloudflare R2
+        shell: bash
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          R2_ENDPOINT: ${{ vars.R2_ENDPOINT }}
+          R2_BUCKET: ${{ vars.R2_BUCKET }}
+        run: |
+          set -euo pipefail
+          aws s3 cp ./upload-trees/r2 "s3://${R2_BUCKET}/" \
+            --recursive \
+            --endpoint-url "$R2_ENDPOINT" \
+            --no-progress
+
+      - name: Upload to Tencent COS
+        uses: TencentCloud/cos-action@5ee3807d5ff6fddadbbb1d3e658c0690863de8ec # v1
+        with:
+          secret_id: ${{ secrets.TENCENT_SECRET_ID }}
+          secret_key: ${{ secrets.TENCENT_SECRET_KEY }}
+          cos_bucket: ${{ vars.TENCENT_COS_BUCKET }}
+          cos_region: ${{ vars.TENCENT_COS_REGION }}
+          local_path: upload-trees/cos
+          remote_path: ''
+          clean: false
+
+      - name: Verify byte-identical public downloads
+        shell: pwsh
+        run: |
+          .\.release-automation\scripts\Test-RemoteReleaseArtifact.ps1 `
+            -Uri '${{ vars.R2_PUBLIC_BASE_URL }}/${{ steps.upload.outputs.object_key }}' `
+            -ExpectedSha256 '${{ needs.build-protect-package.outputs.sha256 }}'
+          .\.release-automation\scripts\Test-RemoteReleaseArtifact.ps1 `
+            -Uri '${{ vars.TENCENT_PUBLIC_BASE_URL }}/${{ steps.upload.outputs.object_key }}' `
+            -ExpectedSha256 '${{ needs.build-protect-package.outputs.sha256 }}'
+
+      - name: Create or update GitHub Release
+        if: startsWith(inputs.release_stage, 'production')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ github.ref_name }}
+          VERSION: ${{ needs.build-protect-package.outputs.version }}
+          PRODUCT_ID: ${{ inputs.product_id }}
+          ARCHIVE_NAME: ${{ needs.build-protect-package.outputs.archive_name }}
+          SHA256: ${{ needs.build-protect-package.outputs.sha256 }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG_NAME" \
+              "artifacts/$ARCHIVE_NAME" \
+              "artifacts/$ARCHIVE_NAME.sha256" \
+              --clobber \
+              --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$TAG_NAME" \
+              "artifacts/$ARCHIVE_NAME" \
+              "artifacts/$ARCHIVE_NAME.sha256" \
+              --verify-tag \
+              --title "$PRODUCT_ID $VERSION" \
+              --notes "SHA-256: \`$SHA256\`" \
+              --repo "$GITHUB_REPOSITORY"
+          fi
+
+      - name: Notify update service
+        if: >-
+          inputs.release_stage == 'production-with-webhook' &&
+          needs.build-protect-package.outputs.webhook_enabled == 'true' &&
+          vars.CALL_ADMIN_WEBHOOK == 'true'
+        shell: bash
+        env:
+          UPDATE_WEBHOOK_KEY: ${{ secrets.UPDATE_WEBHOOK_KEY }}
+          PRODUCT_NAME: ${{ vars.UPDATE_PRODUCT_NAME }}
+        run: |
+          set -euo pipefail
+          if [ -z "$UPDATE_WEBHOOK_KEY" ] || [ -z "$PRODUCT_NAME" ]; then
+            echo "::error::Webhook configuration is incomplete."
+            exit 1
+          fi
+          curl \
+            --fail-with-body \
+            --silent \
+            --show-error \
+            --max-time 30 \
+            --request POST \
+            --data-urlencode "secret=${UPDATE_WEBHOOK_KEY}" \
+            "http://update.ffxivbots.com:8080/Webhooks?product=${PRODUCT_NAME}"
+
+      - name: Write release summary
+        shell: bash
+        env:
+          VERSION: ${{ needs.build-protect-package.outputs.version }}
+          SHA256: ${{ needs.build-protect-package.outputs.sha256 }}
+          OBJECT_KEY: ${{ steps.upload.outputs.object_key }}
+          R2_BASE: ${{ vars.R2_PUBLIC_BASE_URL }}
+          COS_BASE: ${{ vars.TENCENT_PUBLIC_BASE_URL }}
+        run: |
+          {
+            echo "### ${{ inputs.product_id }} $VERSION"
+            echo
+            echo "- Stage: \`${{ inputs.release_stage }}\`"
+            echo "- SHA-256: \`$SHA256\`"
+            echo "- R2: $R2_BASE/$OBJECT_KEY"
+            echo "- Tencent COS: $COS_BASE/$OBJECT_KEY"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -1,8 +1,22 @@
 # Plugin Release Automation Plan
 
-Status: implementation started; non-deploying Manderville pilot validated locally
-Last updated: 2026-07-29
+Status: shared four-gate release workflow implemented; rollout validation in progress
+Last updated: 2026-07-30
 Primary user: `DomesticWarlord`
+
+## Implementation checkpoint — 2026-07-30
+
+The shared workflow now implements separate `validate`, `staging`, `production`, and
+`production-with-webhook` gates. It builds once on Windows, validates licensed Reactor output,
+creates the updater-compatible ZIP and checksum, uploads byte-identical objects to Cloudflare R2
+and Tencent COS, verifies both public downloads, creates or updates the GitHub Release, and leaves
+the webhook as the final conditional step.
+
+Cloudflare staging and production buckets, custom download hostnames, Tencent bucket/region, and
+the exact legacy Tencent aliases are known. Credentials are stored only as protected GitHub
+environment secrets. The accepted existing webhook endpoint uses HTTP port 8080; the native curl
+step does not follow redirects and runs only in the final gate. Panda Farmer WPF remains disabled
+in shared configuration.
 
 ## Implementation checkpoint — 2026-07-29
 

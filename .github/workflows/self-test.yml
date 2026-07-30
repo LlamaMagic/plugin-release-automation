@@ -40,6 +40,21 @@ jobs:
             (Join-Path $PWD '.test-fixture\bin\PandaAuth.dll'),
             [byte[]] (5, 6, 7, 8)
           )
+          $original = [byte[]]::new(2048)
+          $original[0] = 0x4d
+          $original[1] = 0x5a
+          [IO.File]::WriteAllBytes(
+            (Join-Path $PWD '.test-fixture\bin\original.dll'),
+            $original
+          )
+          $protected = [byte[]]::new(2048)
+          $protected[0] = 0x4d
+          $protected[1] = 0x5a
+          $protected[100] = 1
+          [IO.File]::WriteAllBytes(
+            (Join-Path $PWD '.test-fixture\bin\protected.dll'),
+            $protected
+          )
 
       - name: Validate product configuration
         shell: pwsh
@@ -89,6 +104,54 @@ jobs:
             -ProductId MandervilleWeapons `
             -ArchivePath .\artifacts\MandervilleWeapons-0.0.${{ github.run_number }}.zip `
             -ExpectedVersion 0.0.${{ github.run_number }}
+
+      - name: Test protected assembly gate
+        shell: pwsh
+        run: |
+          .\scripts\Test-ProtectedAssembly.ps1 `
+            -OriginalAssemblyPath .\.test-fixture\bin\original.dll `
+            -ProtectedAssemblyPath .\.test-fixture\bin\protected.dll
+
+      - name: Test staging and production upload layouts
+        shell: pwsh
+        run: |
+          $version = '0.0.${{ github.run_number }}'
+          $archive = ".\artifacts\MandervilleWeapons-$version.zip"
+          $checksum = "$archive.sha256"
+
+          .\scripts\New-ReleaseUploadTrees.ps1 `
+            -ArchivePath $archive `
+            -Sha256Path $checksum `
+            -ProductId MandervilleWeapons `
+            -Version $version `
+            -Destination staging `
+            -ObjectPrefix plugins `
+            -OutputRoot .\.test-fixture\staging-upload
+
+          if (Test-Path .\.test-fixture\staging-upload\cos\MandervilleWeapons\MandervilleWeapons.zip) {
+            throw 'Staging must not write the legacy Tencent production alias.'
+          }
+
+          .\scripts\New-ReleaseUploadTrees.ps1 `
+            -ArchivePath $archive `
+            -Sha256Path $checksum `
+            -ProductId MandervilleWeapons `
+            -Version $version `
+            -Destination production `
+            -ObjectPrefix plugins `
+            -OutputRoot .\.test-fixture\production-upload
+
+          $required = @(
+            ".\.test-fixture\production-upload\r2\plugins\MandervilleWeapons\stable\$version\MandervilleWeapons-$version.zip",
+            '.\.test-fixture\production-upload\r2\plugins\MandervilleWeapons\MandervilleWeapons.zip',
+            '.\.test-fixture\production-upload\cos\MandervilleWeapons\MandervilleWeapons.zip',
+            '.\.test-fixture\production-upload\cos\MandervilleWeapons\Version.txt'
+          )
+          foreach ($path in $required) {
+            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+              throw "Expected upload file is missing: $path"
+            }
+          }
 
       - name: Upload test package
         uses: actions/upload-artifact@v7

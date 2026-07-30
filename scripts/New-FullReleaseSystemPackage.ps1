@@ -23,8 +23,19 @@ function Invoke-Git {
     )
 
     $safeDirectory = $Repository.Replace('\', '/')
-    $output = & git -c "safe.directory=$safeDirectory" -C $Repository @Arguments 2>&1
-    if ($LASTEXITCODE -ne 0) {
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        $output = @(
+            & git -c "safe.directory=$safeDirectory" -C $Repository @Arguments 2>&1 |
+                ForEach-Object { "$_" }
+        )
+        $gitExitCode = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+    if ($gitExitCode -ne 0) {
         throw "git $($Arguments -join ' ') failed in ${Repository}:`n$($output -join "`n")"
     }
     return @($output)
@@ -72,8 +83,10 @@ $resolvedWorkspace = (Resolve-Path -LiteralPath $WorkspaceRoot).Path
 $resolvedPluginRoot = (Resolve-Path -LiteralPath $PluginRoot).Path
 $resolvedOutput = [System.IO.Path]::GetFullPath($OutputPath)
 $allowedOutputRoot = [System.IO.Path]::GetFullPath((Join-Path $resolvedWorkspace 'handoff'))
+$allowedOutputPrefix = $allowedOutputRoot.TrimEnd([char[]] @('\', '/')) +
+    [System.IO.Path]::DirectorySeparatorChar
 
-if (-not $resolvedOutput.StartsWith($allowedOutputRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+if (-not $resolvedOutput.StartsWith($allowedOutputPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
     throw "Output must stay under the workspace handoff directory: $allowedOutputRoot"
 }
 
@@ -86,7 +99,7 @@ $products = @(
     [pscustomobject]@{ Id = 'ZodiacWeapons'; Repo = 'ZodiacWeapons'; Project = 'ZodiacWeapons.csproj'; Reactor = 'ZodiacWeapons.nrproj' },
     [pscustomobject]@{ Id = 'RelicWeapons'; Repo = 'RelicWeapons'; Project = 'RelicWeapons.csproj'; Reactor = 'PandaFarmer.nrproj' },
     [pscustomobject]@{ Id = 'SplendorousTools'; Repo = 'SplendorousTools'; Project = 'SplendorousTools.csproj'; Reactor = 'SplendorousTools.nrproj' },
-    [pscustomobject]@{ Id = 'BeastTribes'; Repo = 'BeastTribesPlugin'; Project = 'BeastTribes.csproj'; Reactor = 'BeastTribes.nrproj' }
+    [pscustomobject]@{ Id = 'BeastTribes'; Repo = 'BeastTribes'; Project = 'BeastTribes.csproj'; Reactor = 'BeastTribes.nrproj' }
 )
 
 $stagingRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("full-release-system-" + [guid]::NewGuid().ToString('N'))
@@ -105,14 +118,32 @@ try {
     }
 
     $bundlePath = Join-Path $stagingRoot 'automation-repository.bundle'
-    & git -c "safe.directory=$($resolvedWorkspace.Replace('\', '/'))" -C $resolvedWorkspace bundle create $bundlePath --all
-    if ($LASTEXITCODE -ne 0) {
-        throw 'Failed to create the automation repository Git bundle.'
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        $bundleOutput = @(
+            & git -c "safe.directory=$($resolvedWorkspace.Replace('\', '/'))" -C $resolvedWorkspace `
+                bundle create $bundlePath HEAD refs/heads/main --tags 2>&1 |
+                ForEach-Object { "$_" }
+        )
+        $bundleExitCode = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+    if ($bundleExitCode -ne 0) {
+        throw "Failed to create the automation repository Git bundle:`n$($bundleOutput -join "`n")"
     }
 
     $repoStates = @()
     foreach ($product in $products) {
         $repository = Join-Path $resolvedPluginRoot $product.Repo
+        if (
+            $product.Id -eq 'BeastTribes' -and
+            -not (Test-Path -LiteralPath $repository -PathType Container)
+        ) {
+            $repository = Join-Path $resolvedPluginRoot 'BeastTribesPlugin'
+        }
         $resolvedRepository = (Resolve-Path -LiteralPath $repository).Path
         $destination = Join-Path $stagingRoot ("plugin-integration\" + $product.Id)
         [System.IO.Directory]::CreateDirectory($destination) | Out-Null
@@ -121,12 +152,28 @@ try {
         $head = (Invoke-Git -Repository $resolvedRepository -Arguments @('rev-parse', 'HEAD')) -join ''
         $remote = (Invoke-Git -Repository $resolvedRepository -Arguments @('remote', 'get-url', 'origin')) -join ''
         $status = (Invoke-Git -Repository $resolvedRepository -Arguments @('status', '--short', '--branch')) -join "`n"
-        $diff = (Invoke-Git -Repository $resolvedRepository -Arguments @('diff', '--binary', '--no-ext-diff')) -join "`n"
-        $cachedDiff = (Invoke-Git -Repository $resolvedRepository -Arguments @('diff', '--cached', '--binary', '--no-ext-diff')) -join "`n"
-
-        # A deleted MasterKey value would otherwise appear in a patch. Never package it.
-        $diff = [regex]::Replace($diff, '(?s)<MasterKey>.*?</MasterKey>', '<MasterKey>[REDACTED]</MasterKey>')
-        $cachedDiff = [regex]::Replace($cachedDiff, '(?s)<MasterKey>.*?</MasterKey>', '<MasterKey>[REDACTED]</MasterKey>')
+        $reactorExclusion = ":(exclude)$($product.Reactor)"
+        $diff = (
+            Invoke-Git -Repository $resolvedRepository -Arguments @(
+                'diff',
+                '--binary',
+                '--no-ext-diff',
+                '--',
+                '.',
+                $reactorExclusion
+            )
+        ) -join "`n"
+        $cachedDiff = (
+            Invoke-Git -Repository $resolvedRepository -Arguments @(
+                'diff',
+                '--cached',
+                '--binary',
+                '--no-ext-diff',
+                '--',
+                '.',
+                $reactorExclusion
+            )
+        ) -join "`n"
 
         Write-Utf8NoBom -Path (Join-Path $destination 'git-status.txt') -Content ($status + "`n")
         Write-Utf8NoBom -Path (Join-Path $destination 'working-tree.patch') -Content ($diff + "`n")
@@ -134,7 +181,6 @@ try {
 
         $integrationFiles = @(
             $product.Project,
-            $product.Reactor,
             'Loader.cs',
             'Properties\AssemblyInfo.cs',
             'packages.config',
@@ -170,7 +216,24 @@ try {
     }
 
     $authRoot = Join-Path $resolvedPluginRoot 'Auth'
+    if (-not (Test-Path -LiteralPath $authRoot -PathType Container)) {
+        $authRoot = Join-Path (Split-Path -Parent $resolvedPluginRoot) 'Auth'
+    }
     $authWorkflow = '.gitea\workflows\release-auth.yaml'
+    if (-not (Test-Path -LiteralPath (Join-Path $authRoot $authWorkflow) -PathType Leaf)) {
+        $nestedAuthRoots = @(
+            (Join-Path $authRoot 'Auth-main\auth'),
+            (Join-Path $authRoot 'auth')
+        )
+        $authRoot = $nestedAuthRoots |
+            Where-Object {
+                Test-Path -LiteralPath (Join-Path $_ $authWorkflow) -PathType Leaf
+            } |
+            Select-Object -First 1
+    }
+    if ([string]::IsNullOrWhiteSpace($authRoot)) {
+        throw "PandaAuth release workflow was not found under the expected Auth checkout locations."
+    }
     Copy-RelativeFile `
         -SourceRoot $authRoot `
         -RelativePath $authWorkflow `
@@ -253,6 +316,12 @@ without packaging the plugins' unrelated source code.
         if ($text -match '(?i)Webhook_key\s*=') {
             throw "Literal webhook credential assignment found in package staging: $($file.FullName)"
         }
+        if ($file.Extension -eq '.patch' -and $text -match '(?m)^GIT binary patch$') {
+            throw "Binary Git patch found in package staging: $($file.FullName)"
+        }
+        if ($file.Extension -eq '.patch' -and $text -match '(?m)^diff --git a/.+\.nrproj b/.+\.nrproj$') {
+            throw "Reactor project diff found in package staging: $($file.FullName)"
+        }
     }
 
     $manifestFiles = @(
@@ -302,7 +371,9 @@ without packaging the plugins' unrelated source code.
 finally {
     $resolvedStaging = [System.IO.Path]::GetFullPath($stagingRoot)
     $systemTemp = [System.IO.Path]::GetFullPath([System.IO.Path]::GetTempPath())
-    if (-not $resolvedStaging.StartsWith($systemTemp, [System.StringComparison]::OrdinalIgnoreCase)) {
+    $systemTempPrefix = $systemTemp.TrimEnd([char[]] @('\', '/')) +
+        [System.IO.Path]::DirectorySeparatorChar
+    if (-not $resolvedStaging.StartsWith($systemTempPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
         throw "Refusing to remove unexpected staging path: $resolvedStaging"
     }
     if (Test-Path -LiteralPath $resolvedStaging) {
