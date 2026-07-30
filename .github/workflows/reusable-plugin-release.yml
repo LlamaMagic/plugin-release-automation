@@ -35,7 +35,7 @@ on:
         type: string
     secrets:
       REACTOR_LICENSE_BASE64:
-        required: true
+        required: false
       R2_ACCESS_KEY_ID:
         required: false
       R2_SECRET_ACCESS_KEY:
