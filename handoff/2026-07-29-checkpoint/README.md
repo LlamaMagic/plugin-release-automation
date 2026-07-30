@@ -10,8 +10,9 @@ Start by reading, in order:
 3. `docs/REQUIRED_CONFIGURATION.md`.
 4. This handoff's `STATUS.md`, `VALIDATION.md`, and `NEXT_ACTIONS.md`.
 
-This is a safe checkpoint. Nothing has been pushed, deployed, uploaded to a cloud bucket, released,
-or sent to the admin webhook.
+This is a safe checkpoint. The shared automation foundation has been pushed publicly, but no plugin
+changes have been pushed, deployed, uploaded to a cloud bucket, released, or sent to the admin
+webhook.
 
 ## Non-negotiable safety facts
 

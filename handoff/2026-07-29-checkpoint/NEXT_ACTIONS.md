@@ -4,9 +4,12 @@ Proceed in this order.
 
 ## 1. Validate the shared repository
 
-The approved destination is the public repository
-`LlamaMagic/plugin-release-automation`. Confirm its initial Actions run, repository visibility,
-default branch, and absence of secrets before creating the first immutable release tag.
+The public repository `LlamaMagic/plugin-release-automation` exists with default branch `main`.
+Visibility and Actions availability were verified. Its initial commit is
+`bd577d56acc177e8f2575d905a8e172d0226f713`.
+
+Add a small self-test workflow or call the reusable workflow from Manderville, then create the
+first immutable release tag only after the GitHub-hosted run succeeds.
 
 ## 2. Review and publish the non-deploying Manderville pilot
 

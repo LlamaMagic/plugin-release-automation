@@ -6,7 +6,10 @@ Path: `C:\Users\domes\OneDrive\Documentos\GitHub Release Work Flow`
 
 - Branch: `main`
 - Canonical repository: `https://github.com/LlamaMagic/plugin-release-automation`
-- Initial publication was authorized after this checkpoint was assembled.
+- Visibility: public
+- Initial commit: `bd577d56acc177e8f2575d905a8e172d0226f713`
+- Local `main` tracks `origin/main`.
+- GitHub Actions is enabled and currently permits all actions.
 
 Implemented files:
 
@@ -21,7 +24,8 @@ Implemented files:
 - `README.md`
 
 The reusable workflow's callers require the automation repository and an immutable tag or commit
-as inputs. Prefer a release tag after the initial GitHub-hosted validation succeeds.
+as inputs. The initial commit can be used for a pilot, but prefer a release tag after the first
+GitHub-hosted validation succeeds.
 
 ## Manderville pilot
 

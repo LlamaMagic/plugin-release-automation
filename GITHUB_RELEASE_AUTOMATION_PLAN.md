@@ -22,7 +22,8 @@ Completed:
 
 Not yet done:
 
-- No branches, commits, or workflow files have been pushed.
+- The shared automation repository has been published, but no plugin repository changes have been
+  committed or pushed.
 - No Cloudflare or Tencent resources have been created or changed.
 - No GitHub deployment secrets have been entered.
 - Reactor has not been installed or exercised on a GitHub-hosted runner.
