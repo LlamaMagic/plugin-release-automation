@@ -166,7 +166,6 @@ jobs:
           --no-restore
           -p:CI=true
           -p:SkipPandaPostBuild=true
-          -p:SkipSquadronDiagnostic=true
 
       - name: Install licensed .NET Reactor
         uses: eziriz/dotnet-reactor-install-action@54eb29390b46233e50e29ff37481ffecae6c458a # v1.0.0
