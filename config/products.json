@@ -1,0 +1,146 @@
+{
+  "schemaVersion": 1,
+  "products": {
+    "PandaFarmer": {
+      "projectName": "PandaFarmer",
+      "projectFile": "PandaFarmer.csproj",
+      "loaderTemplate": "Loader.cs",
+      "webhookEnabled": true,
+      "additionalFiles": [],
+      "archiveEntries": [
+        "PandaAuth.dll",
+        "PandaFarmer.dll",
+        "PandaFarmerLoader.cs",
+        "Version.txt"
+      ]
+    },
+    "PandaFarmerWPF": {
+      "projectName": "PandaFarmerWPF",
+      "projectFile": "PandaFarmerWPF.csproj",
+      "loaderTemplate": "Loader.cs",
+      "webhookEnabled": false,
+      "additionalFiles": [
+        {
+          "source": "changelog.txt",
+          "destination": "changelog.txt"
+        }
+      ],
+      "archiveEntries": [
+        "changelog.txt",
+        "PandaAuth.dll",
+        "PandaFarmerWPF.dll",
+        "PandaFarmerWPFLoader.cs",
+        "Version.txt"
+      ]
+    },
+    "PandaTripleTriad": {
+      "projectName": "PandaTripleTriad",
+      "projectFile": "PandaTripleTriad.csproj",
+      "loaderTemplate": "Loader.cs",
+      "webhookEnabled": true,
+      "additionalFiles": [
+        {
+          "source": "changelog.txt",
+          "destination": "changelog.txt"
+        }
+      ],
+      "archiveEntries": [
+        "changelog.txt",
+        "PandaAuth.dll",
+        "PandaTripleTriad.dll",
+        "PandaTripleTriadLoader.cs",
+        "Version.txt"
+      ]
+    },
+    "AnimaWeapons": {
+      "projectName": "AnimaWeapons",
+      "projectFile": "AnimaWeapons.csproj",
+      "loaderTemplate": "Loader.cs",
+      "webhookEnabled": true,
+      "additionalFiles": [],
+      "archiveEntries": [
+        "AnimaWeapons.dll",
+        "AnimaWeaponsLoader.cs",
+        "PandaAuth.dll",
+        "Version.txt"
+      ]
+    },
+    "MandervilleWeapons": {
+      "projectName": "MandervilleWeapons",
+      "projectFile": "MandervilleWeapons.csproj",
+      "loaderTemplate": "Loader.cs",
+      "webhookEnabled": true,
+      "additionalFiles": [],
+      "archiveEntries": [
+        "MandervilleWeapons.dll",
+        "MandervilleWeaponsLoader.cs",
+        "PandaAuth.dll",
+        "Version.txt"
+      ]
+    },
+    "ZodiacWeapons": {
+      "projectName": "ZodiacWeapons",
+      "projectFile": "ZodiacWeapons.csproj",
+      "loaderTemplate": "Loader.cs",
+      "webhookEnabled": true,
+      "additionalFiles": [],
+      "archiveEntries": [
+        "PandaAuth.dll",
+        "Version.txt",
+        "ZodiacWeapons.dll",
+        "ZodiacWeaponsLoader.cs"
+      ]
+    },
+    "RelicWeapons": {
+      "projectName": "RelicWeapons",
+      "projectFile": "RelicWeapons.csproj",
+      "loaderTemplate": "Loader.cs",
+      "webhookEnabled": true,
+      "additionalFiles": [],
+      "archiveEntries": [
+        "PandaAuth.dll",
+        "RelicWeapons.dll",
+        "RelicWeaponsLoader.cs",
+        "Version.txt"
+      ]
+    },
+    "SplendorousTools": {
+      "projectName": "SplendorousTools",
+      "projectFile": "SplendorousTools.csproj",
+      "loaderTemplate": "Loader.cs",
+      "webhookEnabled": true,
+      "additionalFiles": [
+        {
+          "source": "Settings/SplendorousToolsSettings.cs",
+          "destination": "SplendorousToolsSettings.cs"
+        }
+      ],
+      "archiveEntries": [
+        "PandaAuth.dll",
+        "SplendorousTools.dll",
+        "SplendorousToolsLoader.cs",
+        "SplendorousToolsSettings.cs",
+        "Version.txt"
+      ]
+    },
+    "BeastTribes": {
+      "projectName": "BeastTribes",
+      "projectFile": "BeastTribes.csproj",
+      "loaderTemplate": "Loader.cs",
+      "webhookEnabled": true,
+      "additionalFiles": [
+        {
+          "source": "changelog.txt",
+          "destination": "changelog.txt"
+        }
+      ],
+      "archiveEntries": [
+        "BeastTribes.dll",
+        "BeastTribesLoader.cs",
+        "changelog.txt",
+        "PandaAuth.dll",
+        "Version.txt"
+      ]
+    }
+  }
+}

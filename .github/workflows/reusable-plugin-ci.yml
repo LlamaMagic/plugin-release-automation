@@ -1,0 +1,116 @@
+name: Reusable plugin CI
+
+on:
+  workflow_call:
+    inputs:
+      product_id:
+        description: Product key in config/products.json
+        required: true
+        type: string
+      project_file:
+        description: Project file path in the caller repository
+        required: true
+        type: string
+      build_output_directory:
+        description: Release build output directory in the caller repository
+        required: true
+        type: string
+      assembly_info_path:
+        description: AssemblyInfo.cs path in the caller repository
+        required: true
+        type: string
+      automation_repository:
+        description: Repository containing these shared scripts and product configuration
+        required: true
+        type: string
+      automation_ref:
+        description: Immutable tag or commit for the automation repository
+        required: true
+        type: string
+      version:
+        description: Numeric version used for the validation package
+        required: false
+        default: 0.0.0-ci
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-validate:
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out plugin
+        uses: actions/checkout@v7
+
+      - name: Check out release automation
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ inputs.automation_repository }}
+          ref: ${{ inputs.automation_ref }}
+          path: .release-automation
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Select validation version
+        id: version
+        shell: pwsh
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
+        run: |
+          $version = $env:REQUESTED_VERSION
+          if ($version -eq '0.0.0-ci') {
+            $version = "0.0.$env:GITHUB_RUN_NUMBER"
+          }
+          "value=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Set assembly version
+        shell: pwsh
+        run: >
+          .\.release-automation\scripts\Set-AssemblyVersion.ps1
+          -AssemblyInfoPath '${{ inputs.assembly_info_path }}'
+          -Version '${{ steps.version.outputs.value }}'
+
+      - name: Restore
+        shell: pwsh
+        run: >
+          dotnet restore '${{ inputs.project_file }}'
+          --source https://api.nuget.org/v3/index.json
+          --source https://gitea.llamamagic.net/api/packages/DomesticWarlord/nuget/index.json
+
+      - name: Build
+        shell: pwsh
+        run: dotnet build '${{ inputs.project_file }}' --configuration Release --no-restore -p:CI=true
+
+      - name: Package
+        shell: pwsh
+        run: >
+          .\.release-automation\scripts\Build-PluginPackage.ps1
+          -ConfigPath .\.release-automation\config\products.json
+          -ProductId '${{ inputs.product_id }}'
+          -RepositoryRoot .
+          -BuildOutputDirectory '${{ inputs.build_output_directory }}'
+          -Version '${{ steps.version.outputs.value }}'
+          -ReleaseOutputDirectory .\artifacts
+
+      - name: Validate package contract
+        shell: pwsh
+        run: >
+          .\.release-automation\scripts\Test-PluginPackage.ps1
+          -ConfigPath .\.release-automation\config\products.json
+          -ProductId '${{ inputs.product_id }}'
+          -ArchivePath '.\artifacts\${{ inputs.product_id }}-${{ steps.version.outputs.value }}.zip'
+          -ExpectedVersion '${{ steps.version.outputs.value }}'
+
+      - name: Upload validation package
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ inputs.product_id }}-${{ steps.version.outputs.value }}
+          path: |
+            artifacts/*.zip
+            artifacts/*.sha256
+          if-no-files-found: error
