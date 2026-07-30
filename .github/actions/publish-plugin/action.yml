@@ -108,7 +108,21 @@ runs:
       run: |
         set -euo pipefail
         for url in "$R2_URL" "$COS_URL"; do
-          status="$(curl --silent --show-error --location --output existing.zip --write-out '%{http_code}' "$url")"
+          separator='?'
+          if [[ "$url" == *'?'* ]]; then
+            separator='&'
+          fi
+          check_url="${url}${separator}release_preflight=$(date +%s%N)"
+          status="$(
+            curl \
+              --silent \
+              --show-error \
+              --location \
+              --header 'Cache-Control: no-cache' \
+              --output existing.zip \
+              --write-out '%{http_code}' \
+              "$check_url"
+          )"
           if [ "$status" = "200" ]; then
             actual="$(sha256sum existing.zip | awk '{print $1}')"
             if [ "$actual" != "$EXPECTED_SHA256" ]; then
