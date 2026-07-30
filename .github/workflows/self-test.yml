@@ -69,6 +69,37 @@ jobs:
           if ($configuration.products.PandaFarmerWPF.webhookEnabled -ne $false) {
             throw "PandaFarmerWPF must have its webhook disabled."
           }
+          $requiredReleaseComponents = @(
+            '.\.github\actions\build-protected-plugin\action.yml',
+            '.\.github\actions\publish-plugin\action.yml',
+            '.\templates\plugin-release.yml.template',
+            '.\scripts\New-PluginReleaseCaller.ps1'
+          )
+          foreach ($path in $requiredReleaseComponents) {
+            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+              throw "Required release component is missing: $path"
+            }
+          }
+
+      - name: Generate protected-environment caller
+        shell: pwsh
+        run: |
+          .\scripts\New-PluginReleaseCaller.ps1 `
+            -TemplatePath .\templates\plugin-release.yml.template `
+            -OutputPath .\.test-fixture\release.yml `
+            -ProductId MandervilleWeapons `
+            -ProjectFile MandervilleWeapons.csproj `
+            -ReactorProjectFile MandervilleWeapons.nrproj `
+            -AutomationRef test-ref `
+            -WebhookEnabled $true
+
+          $caller = Get-Content .\.test-fixture\release.yml -Raw
+          if ($caller -notmatch 'environment:') {
+            throw 'Generated caller does not select protected environments.'
+          }
+          if ($caller -match '__[A-Z_]+__') {
+            throw 'Generated caller contains an unresolved template token.'
+          }
 
       - name: Test assembly versioning
         shell: pwsh

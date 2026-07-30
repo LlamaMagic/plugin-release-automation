@@ -6,7 +6,7 @@ Canonical repository: <https://github.com/LlamaMagic/plugin-release-automation>
 
 ## Release gates
 
-The reusable release workflow exposes four deliberately separate stages:
+The shared release components expose four deliberately separate stages:
 
 1. `validate` builds, runs licensed .NET Reactor, validates the protected DLL, and saves a rollback
    artifact. It cannot deploy.
@@ -18,6 +18,9 @@ The reusable release workflow exposes four deliberately separate stages:
 
 Production stages are rejected unless the workflow is running from a `v<version>` tag. Panda Farmer
 WPF is disabled at the shared product-configuration layer and cannot notify the update service.
+Repository-local jobs select the protected environment, then invoke pinned shared composite actions.
+This is required because GitHub does not pass environment secrets through cross-repository reusable
+workflow calls.
 
 See [DEPLOYMENT_CONFIGURATION.md](docs/DEPLOYMENT_CONFIGURATION.md) for environment setup,
 [GITHUB_RELEASE_AUTOMATION_PLAN.md](GITHUB_RELEASE_AUTOMATION_PLAN.md) for the rollout plan, and

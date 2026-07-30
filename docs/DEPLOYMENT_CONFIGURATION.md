@@ -1,8 +1,9 @@
 # Deployment configuration
 
 Each plugin repository uses two protected GitHub environments: `staging` and `production`.
-Environment names are selected inside the reusable workflow and cannot be supplied as arbitrary
-caller input.
+Repository-local jobs select one of those two names and invoke pinned shared composite actions.
+Environment secrets cannot cross a reusable-workflow call, so release callers must not be replaced
+with a cross-repository `jobs.<id>.uses` shortcut.
 
 ## Secrets
 
@@ -70,8 +71,9 @@ Staging never writes those legacy Tencent aliases.
 
 ## Required caller behavior
 
-Caller workflows should offer manual `validate`, `staging`, and `production` dispatches. A tag push
-may call `production-with-webhook`. The reusable workflow independently checks that either
-production stage runs from a `v`-prefixed tag and that its numeric version matches the tag.
+Caller workflows should offer manual `validate`, `staging`, `production`, and
+`production-with-webhook` dispatches. Tag pushes initially run `production` without the webhook.
+The repository-local request guard checks that either production stage runs from a `v`-prefixed tag
+and that its numeric version matches the tag.
 
 All external actions in the shared release workflow are pinned to full commit SHAs.

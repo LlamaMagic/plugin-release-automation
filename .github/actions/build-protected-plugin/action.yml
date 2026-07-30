@@ -1,0 +1,134 @@
+name: Build protected plugin package
+description: Build, protect, validate, package, and retain one plugin artifact
+
+inputs:
+  product_id:
+    required: true
+  project_file:
+    required: true
+  reactor_project_file:
+    required: true
+  build_output_directory:
+    required: true
+  assembly_info_path:
+    required: true
+  version:
+    required: true
+  reactor_license_base64:
+    required: true
+  automation_path:
+    required: false
+    default: .release-automation
+
+outputs:
+  archive_name:
+    value: ${{ steps.package.outputs.archive_name }}
+  sha256:
+    value: ${{ steps.package.outputs.sha256 }}
+
+runs:
+  using: composite
+  steps:
+    - name: Require Reactor license
+      shell: pwsh
+      env:
+        REACTOR_LICENSE: ${{ inputs.reactor_license_base64 }}
+      run: |
+        if ([string]::IsNullOrWhiteSpace($env:REACTOR_LICENSE)) {
+          throw 'REACTOR_LICENSE_BASE64 is not configured in the selected environment.'
+        }
+
+    - name: Set up .NET
+      uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+      with:
+        dotnet-version: 8.0.x
+
+    - name: Set assembly version
+      shell: pwsh
+      run: >
+        .\${{ inputs.automation_path }}\scripts\Set-AssemblyVersion.ps1
+        -AssemblyInfoPath '${{ inputs.assembly_info_path }}'
+        -Version '${{ inputs.version }}'
+
+    - name: Restore
+      shell: pwsh
+      run: >
+        dotnet restore '${{ inputs.project_file }}'
+        --source https://api.nuget.org/v3/index.json
+        --source https://gitea.llamamagic.net/api/packages/DomesticWarlord/nuget/index.json
+
+    - name: Build without legacy deployment
+      shell: pwsh
+      run: >
+        dotnet build '${{ inputs.project_file }}'
+        --configuration Release
+        --no-restore
+        -p:CI=true
+        -p:SkipPandaPostBuild=true
+
+    - name: Install licensed .NET Reactor
+      uses: eziriz/dotnet-reactor-install-action@54eb29390b46233e50e29ff37481ffecae6c458a # v1.0.0
+      with:
+        license: ${{ inputs.reactor_license_base64 }}
+
+    - name: Create protected output directory
+      shell: pwsh
+      run: New-Item -ItemType Directory -Path .\protected -Force | Out-Null
+
+    - name: Protect plugin assembly
+      uses: eziriz/dotnet-reactor-run-action@7de216239308cc681dc6853d806cfbe38ae7b7b1 # v1.0.0
+      with:
+        project_file: ${{ inputs.reactor_project_file }}
+        input_path: ${{ inputs.build_output_directory }}/${{ inputs.product_id }}.dll
+        output_path: protected/${{ inputs.product_id }}.dll
+        additional_arguments: -licensed
+
+    - name: Validate Reactor output
+      shell: pwsh
+      run: >
+        .\${{ inputs.automation_path }}\scripts\Test-ProtectedAssembly.ps1
+        -OriginalAssemblyPath '${{ inputs.build_output_directory }}\${{ inputs.product_id }}.dll'
+        -ProtectedAssemblyPath '.\protected\${{ inputs.product_id }}.dll'
+
+    - name: Package protected assembly
+      shell: pwsh
+      run: >
+        .\${{ inputs.automation_path }}\scripts\Build-PluginPackage.ps1
+        -ConfigPath .\${{ inputs.automation_path }}\config\products.json
+        -ProductId '${{ inputs.product_id }}'
+        -RepositoryRoot .
+        -BuildOutputDirectory '${{ inputs.build_output_directory }}'
+        -AssemblyPath '.\protected\${{ inputs.product_id }}.dll'
+        -Version '${{ inputs.version }}'
+        -ReleaseOutputDirectory .\artifacts
+
+    - name: Validate package contract
+      shell: pwsh
+      run: >
+        .\${{ inputs.automation_path }}\scripts\Test-PluginPackage.ps1
+        -ConfigPath .\${{ inputs.automation_path }}\config\products.json
+        -ProductId '${{ inputs.product_id }}'
+        -ArchivePath '.\artifacts\${{ inputs.product_id }}-${{ inputs.version }}.zip'
+        -ExpectedVersion '${{ inputs.version }}'
+
+    - name: Capture package metadata
+      id: package
+      shell: pwsh
+      run: |
+        $archiveName = '${{ inputs.product_id }}-${{ inputs.version }}.zip'
+        $hash = (Get-FileHash ".\artifacts\$archiveName" -Algorithm SHA256).Hash.ToLowerInvariant()
+        $sidecarHash = (Get-Content ".\artifacts\$archiveName.sha256" -Raw).Trim().Split()[0]
+        if ($hash -ne $sidecarHash) {
+          throw 'Package checksum sidecar does not match the archive.'
+        }
+        "archive_name=$archiveName" >> $env:GITHUB_OUTPUT
+        "sha256=$hash" >> $env:GITHUB_OUTPUT
+
+    - name: Upload rollback artifact
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      with:
+        name: release-${{ inputs.product_id }}-${{ inputs.version }}
+        path: |
+          artifacts/*.zip
+          artifacts/*.sha256
+        if-no-files-found: error
