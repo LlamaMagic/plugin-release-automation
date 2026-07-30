@@ -247,7 +247,7 @@ without packaging the plugins' unrelated source code.
             continue
         }
         $text = Get-Content -LiteralPath $file.FullName -Raw
-        if ($text -match '(?s)<MasterKey>\s*[^<\s].*?</MasterKey>') {
+        if ($text -match '(?m)^[+\- ]*\s*<MasterKey>(?!\[REDACTED\])[^<]+</MasterKey>\s*$') {
             throw "Embedded Reactor MasterKey found in package staging: $($file.FullName)"
         }
         if ($text -match '(?i)Webhook_key\s*=') {
