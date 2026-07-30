@@ -136,16 +136,37 @@ runs:
           --endpoint-url "$R2_ENDPOINT" \
           --no-progress
 
-    - name: Upload to Tencent COS
-      uses: TencentCloud/cos-action@5ee3807d5ff6fddadbbb1d3e658c0690863de8ec # v1
-      with:
-        secret_id: ${{ inputs.tencent_secret_id }}
-        secret_key: ${{ inputs.tencent_secret_key }}
-        cos_bucket: ${{ inputs.tencent_cos_bucket }}
-        cos_region: ${{ inputs.tencent_cos_region }}
-        local_path: upload-trees/cos
-        remote_path: ''
-        clean: false
+    - name: Upload to Tencent COS with verified COSCLI
+      shell: bash
+      env:
+        TENCENT_SECRET_ID: ${{ inputs.tencent_secret_id }}
+        TENCENT_SECRET_KEY: ${{ inputs.tencent_secret_key }}
+        TENCENT_COS_BUCKET: ${{ inputs.tencent_cos_bucket }}
+        TENCENT_COS_REGION: ${{ inputs.tencent_cos_region }}
+      run: |
+        set -euo pipefail
+        curl \
+          --fail \
+          --location \
+          --silent \
+          --show-error \
+          --output coscli \
+          https://github.com/tencentyun/coscli/releases/download/v1.0.8/coscli-v1.0.8-linux-amd64
+        echo "7165f2ae16c5f7ac495864c963ca574a76e04ec72680d7bc8a8eee3234d8cf91  coscli" |
+          sha256sum --check
+        chmod 755 coscli
+        ./coscli cp \
+          ./upload-trees/cos/ \
+          "cos://${TENCENT_COS_BUCKET}/" \
+          --recursive \
+          --endpoint "cos.${TENCENT_COS_REGION}.myqcloud.com" \
+          --secret-id "$TENCENT_SECRET_ID" \
+          --secret-key "$TENCENT_SECRET_KEY" \
+          --init-skip \
+          --disable-log \
+          --bucket-type COS \
+          --err-retry-num 3 \
+          --err-retry-interval 3
 
     - name: Verify byte-identical public downloads
       shell: pwsh

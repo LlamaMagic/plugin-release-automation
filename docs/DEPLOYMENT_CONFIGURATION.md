@@ -69,6 +69,9 @@ Tencent production additionally retains the existing compatibility aliases:
 
 Staging never writes those legacy Tencent aliases.
 
+Tencent uploads use the official COSCLI v1.0.8 Linux binary. The workflow verifies the binary
+against Tencent's published SHA-256 before executing it and never uses a destructive sync command.
+
 ## Required caller behavior
 
 Caller workflows should offer manual `validate`, `staging`, `production`, and
