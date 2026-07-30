@@ -33,6 +33,9 @@ Not yet done:
 - No GitHub deployment secrets have been entered.
 - Reactor has not been installed or exercised on a GitHub-hosted runner.
 - No GitHub Release has been created and no webhook has been called.
+- Reactor discovery found no installed console executable and found embedded private master keys in
+  all scoped `.nrproj` files. Key rotation and runner licensing must be resolved before adding
+  obfuscation.
 
 ## 1. Objective
 

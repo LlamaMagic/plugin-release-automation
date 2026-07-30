@@ -77,3 +77,12 @@ The other four plugin repositories were clean at checkpoint time.
 - The local `gh` CLI was reauthenticated as `DomesticWarlord` with `read:org`, `repo`, and
   `workflow` access.
 - The VPS is reachable as `ssh panda-vps`; no production changes were made.
+
+## Reactor security discovery
+
+- The executable referenced by legacy post-build targets is not present at the configured path.
+- No standard Eziriz/Reactor installation or uninstall-registry entry was found.
+- All nine scoped plugin `.nrproj` files contain embedded Reactor master keys.
+- Do not print, copy, upload, or commit those keys into the public automation repository.
+- Because one key was exposed during inspection, ask the user to regenerate/rotate project keys if
+  Reactor supports it before production automation.

@@ -109,12 +109,24 @@ and both public URLs have passed verification. `PandaFarmerWPF` remains hard-dis
 
 ## .NET Reactor
 
+Discovery on 2026-07-29:
+
+- The legacy post-build path does not currently contain `dotNET_Reactor.Console.exe`.
+- No Eziriz/Reactor installation was found in the standard Program Files locations or uninstall
+  registry entries.
+- Every scoped plugin `.nrproj` contains an embedded Reactor master key. These keys must never be
+  copied into the public automation repository, workflow logs, artifacts, or handoff files.
+- One embedded key was exposed during local inspection. Treat the project keys as sensitive and
+  regenerate/rotate them if Reactor supports doing so before production automation.
+
 Information needed from the user:
 
 - The licensed Reactor installer or a stable vendor download URL and checksum.
 - The current license material, entered directly as a protected GitHub secret.
 - Confirmation that the license permits execution on GitHub-hosted runners.
 - One successful non-interactive command line for the Manderville `.nrproj`.
+- A decision on rotating the embedded project master keys and whether they should remain committed
+  in the private plugin repositories or be injected from protected secrets.
 
 The first tagged pilot should stop after producing and validating an obfuscated artifact. Cloud
 uploads and the webhook should remain disabled until that boundary is verified.

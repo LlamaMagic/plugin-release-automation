@@ -36,6 +36,10 @@ Obtain the installer URL/file, checksum, license delivery method, license terms 
 and a working non-interactive Manderville command. Add an obfuscation job that produces the
 assembly consumed by `Build-PluginPackage.ps1`.
 
+Before implementation, decide how to handle the embedded master keys found in every scoped
+`.nrproj`. Prefer rotating them and injecting them from protected secrets if Reactor supports that
+workflow. Never move them into `LlamaMagic/plugin-release-automation` or workflow logs.
+
 The first tag-shaped test must only upload an Actions artifact. It must not touch R2, COS, or the
 webhook.
 
