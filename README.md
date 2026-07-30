@@ -4,21 +4,24 @@ Shared automation for building and publishing the Panda/Llama RebornBuddy plugin
 
 Canonical repository: <https://github.com/LlamaMagic/plugin-release-automation>
 
-The current implementation is intentionally limited to build and package validation. It does not
-upload to Cloudflare R2 or Tencent COS, create a GitHub Release, or call the admin webhook.
+## Release gates
 
-## Current checkpoint
+The reusable release workflow exposes four deliberately separate stages:
 
-- The updater-compatible ZIP layouts have been recovered from the live VPS.
-- `scripts/Build-PluginPackage.ps1` creates a deterministic package layout from an already-built
-  assembly.
-- `scripts/Test-PluginPackage.ps1` rejects missing or unexpected ZIP entries.
-- `.github/workflows/reusable-plugin-ci.yml` is a reusable, non-deploying CI workflow.
-- `.github/workflows/self-test.yml` validates the automation on GitHub-hosted Windows runners.
-- Manderville Weapons is the first pilot repository.
+1. `validate` builds, runs licensed .NET Reactor, validates the protected DLL, and saves a rollback
+   artifact. It cannot deploy.
+2. `staging` publishes immutable artifacts to the staging R2 bucket and a staging prefix in Tencent
+   COS, then downloads both copies and verifies their SHA-256.
+3. `production` publishes production objects and a GitHub Release but cannot call the webhook.
+4. `production-with-webhook` performs the same verified production release and calls the update
+   webhook only for products enabled in both configuration and environment variables.
 
-See [GITHUB_RELEASE_AUTOMATION_PLAN.md](GITHUB_RELEASE_AUTOMATION_PLAN.md) for the complete rollout
-plan and [docs/ARTIFACT_CONTRACT.md](docs/ARTIFACT_CONTRACT.md) for the compatibility contract.
+Production stages are rejected unless the workflow is running from a `v<version>` tag. Panda Farmer
+WPF is disabled at the shared product-configuration layer and cannot notify the update service.
+
+See [DEPLOYMENT_CONFIGURATION.md](docs/DEPLOYMENT_CONFIGURATION.md) for environment setup,
+[GITHUB_RELEASE_AUTOMATION_PLAN.md](GITHUB_RELEASE_AUTOMATION_PLAN.md) for the rollout plan, and
+[ARTIFACT_CONTRACT.md](docs/ARTIFACT_CONTRACT.md) for updater compatibility.
 
 ## Local package test
 
@@ -33,4 +36,4 @@ plan and [docs/ARTIFACT_CONTRACT.md](docs/ARTIFACT_CONTRACT.md) for the compatib
 ```
 
 The packaging step deliberately accepts the compiled assembly as an input boundary. The release
-workflow can later provide the .NET Reactor output without changing the updater-facing ZIP format.
+workflow provides the validated .NET Reactor output without changing the updater-facing ZIP format.

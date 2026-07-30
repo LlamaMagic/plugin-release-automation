@@ -41,3 +41,10 @@ the runner clock. The same version must be used for:
 
 Panda Farmer WPF is a beta and must not invoke the admin webhook. When it replaces Panda Farmer,
 its release configuration must be promoted deliberately to the Panda Farmer stable product slot.
+
+## Mirror rule
+
+The protected ZIP is built once. Its exact bytes and checksum are uploaded to R2, Tencent COS, the
+workflow rollback artifact, and (for production) the GitHub Release. The workflow downloads the
+immutable R2 and Tencent objects and verifies both against the locally generated SHA-256 before a
+GitHub Release or webhook step can run.
