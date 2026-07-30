@@ -73,9 +73,18 @@ The public automation repository's Windows self-test passed:
 - Compatibility package generation and validation: passed
 - GitHub Actions artifact upload: passed
 
+The Manderville pilot also passed the complete reusable workflow:
+
+- Run: `https://github.com/DomesticWarlord/MandervilleWeapons/actions/runs/30510587152`
+- Checkout shared automation: passed
+- .NET 8 setup and restore: passed
+- Explicit assembly versioning: passed
+- Release build with `CI=true`: passed
+- Package generation and exact contract validation: passed
+- Validation-artifact upload: passed
+
 ## Not yet validated
 
-- A plugin build through the shared reusable workflow.
 - .NET Reactor installation, license activation, and obfuscation on a runner.
 - R2 or COS upload and public download.
 - Byte identity between R2 and COS.

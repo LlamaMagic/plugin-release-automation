@@ -14,13 +14,13 @@ Call the reusable workflow from Manderville using:
 uses: LlamaMagic/plugin-release-automation/.github/workflows/reusable-plugin-ci.yml@v0.1.0
 ```
 
-## 2. Review and publish the non-deploying Manderville pilot
+## 2. Review and merge the non-deploying Manderville pilot
 
-Review the two uncommitted Manderville files, create a `codex/` branch, commit, push, and open a
-draft PR only after user approval. Watch the first `Plugin CI` run and fix any runner-specific
-restore or SDK issue.
+Draft PR `DomesticWarlord/MandervilleWeapons#1` is open and its complete reusable-workflow run
+passed. Review the generated validation artifact and project diff, then mark the PR ready and merge
+only after user approval.
 
-Do not add tag triggers, Reactor, cloud credentials, or webhook steps to this first PR.
+Do not add tag triggers, Reactor, cloud credentials, or webhook steps to this pilot PR.
 
 ## 3. Publish and pin shared CI
 

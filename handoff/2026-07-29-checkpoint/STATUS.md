@@ -36,9 +36,11 @@ Path: `C:\Users\domes\OneDrive\Documentos\GitHub\MandervilleWeapons`
 
 - Branch: `main`
 - Remote: `https://github.com/DomesticWarlord/MandervilleWeapons.git`
-- Modified, not staged: `MandervilleWeapons.csproj`
-- Untracked: `.github/workflows/ci.yml`
-- No commit or push has been made.
+- Pilot branch: `codex/release-automation-pilot`
+- Pilot commit: `142f6a9`
+- Draft PR: `https://github.com/DomesticWarlord/MandervilleWeapons/pull/1`
+- Reusable-workflow run: `https://github.com/DomesticWarlord/MandervilleWeapons/actions/runs/30510587152`
+- The complete GitHub-hosted build/package validation passed.
 
 Changes in the project file:
 
@@ -49,8 +51,8 @@ Changes in the project file:
 - Enabled `CopyLocalLockFileAssemblies` for Release so `PandaAuth.dll` reaches the build output.
 - Disabled the legacy local Reactor/staging post-build target only when `CI=true`.
 
-The CI workflow restores from NuGet.org and the LlamaMagic Gitea feed, then builds Release on
-`windows-latest`. It has read-only repository permissions and no secrets or deployment steps.
+The CI workflow calls the public automation repository at immutable tag `v0.1.0`. It has read-only
+repository permissions and no secrets or deployment steps.
 
 ## Other local NuGet migrations
 
