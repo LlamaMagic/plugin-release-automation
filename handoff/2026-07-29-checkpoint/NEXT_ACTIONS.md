@@ -36,9 +36,17 @@ Obtain the installer URL/file, checksum, license delivery method, license terms 
 and a working non-interactive Manderville command. Add an obfuscation job that produces the
 assembly consumed by `Build-PluginPackage.ps1`.
 
-Before implementation, decide how to handle the embedded master keys found in every scoped
-`.nrproj`. Prefer rotating them and injecting them from protected secrets if Reactor supports that
-workflow. Never move them into `LlamaMagic/plugin-release-automation` or workflow logs.
+The nine scoped local `.nrproj` files have been sanitized to `<MasterKey />`. Commit those changes
+through reviewed plugin PRs. The user will rotate project keys separately.
+
+Use the already-proven Panda Auth contract:
+
+1. Store the runner license as `REACTOR_LICENSE_BASE64`.
+2. Decode it to `${{ runner.temp }}/license.v3lic` with restricted file permissions.
+3. Pass the file path to `eziriz/dotnet-reactor-install-action@v1.0.0`.
+4. Run `eziriz/dotnet-reactor-run-action@v1.0.0` with the product `.nrproj`, explicit input/output
+   paths, and `additional_arguments: -licensed`.
+5. Feed only the obfuscated output to `Build-PluginPackage.ps1`.
 
 The first tag-shaped test must only upload an Actions artifact. It must not touch R2, COS, or the
 webhook.

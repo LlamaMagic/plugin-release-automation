@@ -116,17 +116,24 @@ Discovery on 2026-07-29:
   registry entries.
 - Every scoped plugin `.nrproj` contains an embedded Reactor master key. These keys must never be
   copied into the public automation repository, workflow logs, artifacts, or handoff files.
-- One embedded key was exposed during local inspection. Treat the project keys as sensitive and
-  regenerate/rotate them if Reactor supports doing so before production automation.
+- The user will rotate the project keys. The committed `.nrproj` files should contain an empty
+  `<MasterKey />` element rather than a private value.
+- Eziriz explicitly supports GitHub runners through its official install and run actions.
+- Panda Auth already uses the same runner-license pattern successfully.
 
 Information needed from the user:
 
-- The licensed Reactor installer or a stable vendor download URL and checksum.
-- The current license material, entered directly as a protected GitHub secret.
-- Confirmation that the license permits execution on GitHub-hosted runners.
-- One successful non-interactive command line for the Manderville `.nrproj`.
-- A decision on rotating the embedded project master keys and whether they should remain committed
-  in the private plugin repositories or be injected from protected secrets.
+- The GitHub runner license, entered directly as `REACTOR_LICENSE_BASE64` in a protected GitHub
+  environment or organization secret.
+- The exact Reactor version to pin, if Cat's runner license requires one.
 
-The first tagged pilot should stop after producing and validating an obfuscated artifact. Cloud
-uploads and the webhook should remain disabled until that boundary is verified.
+The release job must:
+
+1. Decode `REACTOR_LICENSE_BASE64` to `${{ runner.temp }}/license.v3lic`.
+2. Install Reactor with `eziriz/dotnet-reactor-install-action@v1.0.0`, passing that file path.
+3. Run `eziriz/dotnet-reactor-run-action@v1.0.0`.
+4. Pass `additional_arguments: -licensed` so the job fails rather than emitting demo-mode output.
+5. Package only the action's obfuscated output.
+
+The first tagged pilot should stop after producing and validating an obfuscated Actions artifact.
+Cloud uploads and the webhook should remain disabled until that boundary is verified.

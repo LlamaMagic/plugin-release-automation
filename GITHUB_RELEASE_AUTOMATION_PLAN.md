@@ -33,9 +33,10 @@ Not yet done:
 - No GitHub deployment secrets have been entered.
 - Reactor has not been installed or exercised on a GitHub-hosted runner.
 - No GitHub Release has been created and no webhook has been called.
-- Reactor discovery found no installed console executable and found embedded private master keys in
-  all scoped `.nrproj` files. Key rotation and runner licensing must be resolved before adding
-  obfuscation.
+- Reactor runner support is confirmed through Eziriz's official GitHub actions and the existing
+  Panda Auth workflow. All nine scoped local `.nrproj` files have been sanitized to empty master-key
+  elements; the user will rotate keys. The runner license still needs to be entered directly as a
+  protected GitHub secret before an obfuscation test.
 
 ## 1. Objective
 

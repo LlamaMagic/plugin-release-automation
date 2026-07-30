@@ -80,9 +80,11 @@ The other four plugin repositories were clean at checkpoint time.
 
 ## Reactor security discovery
 
-- The executable referenced by legacy post-build targets is not present at the configured path.
-- No standard Eziriz/Reactor installation or uninstall-registry entry was found.
-- All nine scoped plugin `.nrproj` files contain embedded Reactor master keys.
-- Do not print, copy, upload, or commit those keys into the public automation repository.
-- Because one key was exposed during inspection, ask the user to regenerate/rotate project keys if
-  Reactor supports it before production automation.
+- Eziriz officially supports GitHub runners through
+  `dotnet-reactor-install-action@v1.0.0` and `dotnet-reactor-run-action@v1.0.0`.
+- Panda Auth already materializes `REACTOR_LICENSE_BASE64` as
+  `${RUNNER_TEMP}/license.v3lic`, passes that file to the install action, and runs with `-licensed`.
+- The user confirmed Cat provides the special GitHub-runner license and will rotate project keys.
+- `scripts/Remove-ReactorMasterKey.ps1` was added to the public automation repository.
+- All nine scoped local plugin `.nrproj` files now contain `<MasterKey />`; no embedded values remain.
+- Those nine sanitization changes are local and uncommitted at this checkpoint.
