@@ -106,7 +106,8 @@ jobs:
         run: |
           .\scripts\Set-AssemblyVersion.ps1 `
             -AssemblyInfoPath .\.test-fixture\Properties\AssemblyInfo.cs `
-            -Version 2.3.4
+            -Version 2.3.4 `
+            -ReleaseDateUtc 2026-07-30T21:25:11Z
 
           $assemblyInfo = Get-Content .\.test-fixture\Properties\AssemblyInfo.cs -Raw
           if ($assemblyInfo -notmatch 'AssemblyVersion\("2\.3\.4"\)') {
@@ -114,6 +115,9 @@ jobs:
           }
           if ($assemblyInfo -notmatch 'AssemblyFileVersion\("2\.3\.4"\)') {
             throw "AssemblyFileVersion was not added."
+          }
+          if ($assemblyInfo -notmatch 'AssemblyMetadata\("PandaReleaseDateUtc", "2026-07-30T21:25:11\.0000000Z"\)') {
+            throw "PandaReleaseDateUtc metadata was not added."
           }
 
       - name: Build compatibility package
