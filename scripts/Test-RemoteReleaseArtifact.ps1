@@ -22,7 +22,19 @@ try {
     $lastError = $null
     foreach ($attempt in 1..$Attempts) {
         try {
-            Invoke-WebRequest -Uri $Uri -OutFile $temporaryPath -MaximumRedirection 5
+            # The immutable-object preflight can leave a negative CDN cache entry
+            # immediately before upload. Use a unique query string so verification
+            # reaches the newly uploaded object instead of that stale 404.
+            $separator = if ($Uri.Contains('?')) { '&' } else { '?' }
+            $requestUri = '{0}{1}release_verify={2}' -f
+                $Uri,
+                $separator,
+                [guid]::NewGuid().ToString('N')
+            Invoke-WebRequest `
+                -Uri $requestUri `
+                -Headers @{ 'Cache-Control' = 'no-cache' } `
+                -OutFile $temporaryPath `
+                -MaximumRedirection 5
             $lastError = $null
             break
         }
