@@ -1,3 +1,4 @@
 artifacts/
 handoff/*.zip
+handoff/*.zip.sha256
 .codex-patches/

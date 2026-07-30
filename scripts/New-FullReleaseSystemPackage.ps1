@@ -203,7 +203,7 @@ Security exclusions:
 
 Automation HEAD: $automationHead
 
-Use `automation-repository.bundle` to recreate the automation Git repository:
+Use the automation-repository.bundle file to recreate the automation Git repository:
 
 ``````
 git clone automation-repository.bundle plugin-release-automation
