@@ -1,0 +1,100 @@
+name: Automation self-test
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-packaging:
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Create test fixture
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path .test-fixture\bin -Force | Out-Null
+          New-Item -ItemType Directory -Path .test-fixture\Properties -Force | Out-Null
+
+          [IO.File]::WriteAllText(
+            (Join-Path $PWD '.test-fixture\Loader.cs'),
+            'namespace __TARGET__Loader; // __VERSION__'
+          )
+          [IO.File]::WriteAllText(
+            (Join-Path $PWD '.test-fixture\Properties\AssemblyInfo.cs'),
+            '[assembly: AssemblyVersion("1.0.*")]'
+          )
+          [IO.File]::WriteAllBytes(
+            (Join-Path $PWD '.test-fixture\bin\MandervilleWeapons.dll'),
+            [byte[]] (1, 2, 3, 4)
+          )
+          [IO.File]::WriteAllBytes(
+            (Join-Path $PWD '.test-fixture\bin\PandaAuth.dll'),
+            [byte[]] (5, 6, 7, 8)
+          )
+
+      - name: Validate product configuration
+        shell: pwsh
+        run: |
+          $configuration = Get-Content .\config\products.json -Raw | ConvertFrom-Json
+          if ($configuration.schemaVersion -ne 1) {
+            throw "Unexpected product configuration schema."
+          }
+          if (@($configuration.products.PSObject.Properties).Count -ne 9) {
+            throw "Expected exactly nine configured products."
+          }
+          if ($configuration.products.PandaFarmerWPF.webhookEnabled -ne $false) {
+            throw "PandaFarmerWPF must have its webhook disabled."
+          }
+
+      - name: Test assembly versioning
+        shell: pwsh
+        run: |
+          .\scripts\Set-AssemblyVersion.ps1 `
+            -AssemblyInfoPath .\.test-fixture\Properties\AssemblyInfo.cs `
+            -Version 2.3.4
+
+          $assemblyInfo = Get-Content .\.test-fixture\Properties\AssemblyInfo.cs -Raw
+          if ($assemblyInfo -notmatch 'AssemblyVersion\("2\.3\.4"\)') {
+            throw "AssemblyVersion was not updated."
+          }
+          if ($assemblyInfo -notmatch 'AssemblyFileVersion\("2\.3\.4"\)') {
+            throw "AssemblyFileVersion was not added."
+          }
+
+      - name: Build compatibility package
+        shell: pwsh
+        run: |
+          .\scripts\Build-PluginPackage.ps1 `
+            -ConfigPath .\config\products.json `
+            -ProductId MandervilleWeapons `
+            -RepositoryRoot .\.test-fixture `
+            -BuildOutputDirectory .\.test-fixture\bin `
+            -Version 0.0.${{ github.run_number }} `
+            -ReleaseOutputDirectory .\artifacts
+
+      - name: Test compatibility package
+        shell: pwsh
+        run: |
+          .\scripts\Test-PluginPackage.ps1 `
+            -ConfigPath .\config\products.json `
+            -ProductId MandervilleWeapons `
+            -ArchivePath .\artifacts\MandervilleWeapons-0.0.${{ github.run_number }}.zip `
+            -ExpectedVersion 0.0.${{ github.run_number }}
+
+      - name: Upload test package
+        uses: actions/upload-artifact@v7
+        with:
+          name: automation-self-test-${{ github.run_number }}
+          path: |
+            artifacts/*.zip
+            artifacts/*.sha256
+          if-no-files-found: error
