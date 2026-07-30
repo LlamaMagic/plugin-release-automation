@@ -101,8 +101,16 @@ try {
     }
 
     $bundlePath = Join-Path $extractionRoot 'automation-repository.bundle'
-    $bundleOutput = & git bundle verify $bundlePath 2>&1
-    if ($LASTEXITCODE -ne 0) {
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        $bundleOutput = @(& git bundle verify $bundlePath 2>&1 | ForEach-Object { "$_" })
+        $bundleExitCode = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+    if ($bundleExitCode -ne 0) {
         throw "Automation Git bundle failed verification:`n$($bundleOutput -join "`n")"
     }
 
