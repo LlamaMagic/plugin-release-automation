@@ -10,6 +10,9 @@ Path: `C:\Users\domes\OneDrive\Documentos\GitHub Release Work Flow`
 - Initial commit: `bd577d56acc177e8f2575d905a8e172d0226f713`
 - Local `main` tracks `origin/main`.
 - GitHub Actions is enabled and currently permits all actions.
+- GitHub-hosted self-test run `30510345385` passed all steps in 19 seconds:
+  `https://github.com/LlamaMagic/plugin-release-automation/actions/runs/30510345385`.
+- Stable reusable-workflow tag: `v0.1.0`.
 
 Implemented files:
 

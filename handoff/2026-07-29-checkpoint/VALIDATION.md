@@ -62,9 +62,20 @@ that `Version.txt` contains `0.0.1`.
 - The packaging scripts work under Windows PowerShell 5.1 using `-ExecutionPolicy Bypass`, as well
   as being written for `pwsh` in GitHub Actions.
 
+## GitHub-hosted validation
+
+The public automation repository's Windows self-test passed:
+
+- Run: `https://github.com/LlamaMagic/plugin-release-automation/actions/runs/30510345385`
+- Duration: 19 seconds
+- Versioning: passed
+- Nine-product configuration and WPF webhook guard: passed
+- Compatibility package generation and validation: passed
+- GitHub Actions artifact upload: passed
+
 ## Not yet validated
 
-- GitHub-hosted Actions run.
+- A plugin build through the shared reusable workflow.
 - .NET Reactor installation, license activation, and obfuscation on a runner.
 - R2 or COS upload and public download.
 - Byte identity between R2 and COS.

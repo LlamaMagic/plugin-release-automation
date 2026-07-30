@@ -13,6 +13,9 @@ Completed:
 - Added PowerShell scripts for explicit assembly versioning, package generation, SHA-256 output,
   and exact ZIP-entry validation.
 - Added a reusable, non-deploying Windows GitHub Actions CI workflow.
+- Published the shared foundation to the public
+  `LlamaMagic/plugin-release-automation` repository.
+- Passed the GitHub-hosted automation self-test, including package generation and artifact upload.
 - Updated the local Manderville Weapons pilot to use the LlamaLibrary NuGet package, PandaAuth
   `4.1.0`, and RebornBuddy reference assemblies `1.0.886`.
 - Added a CI guard around Manderville's legacy local Reactor post-build target.

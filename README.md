@@ -14,6 +14,7 @@ upload to Cloudflare R2 or Tencent COS, create a GitHub Release, or call the adm
   assembly.
 - `scripts/Test-PluginPackage.ps1` rejects missing or unexpected ZIP entries.
 - `.github/workflows/reusable-plugin-ci.yml` is a reusable, non-deploying CI workflow.
+- `.github/workflows/self-test.yml` validates the automation on GitHub-hosted Windows runners.
 - Manderville Weapons is the first pilot repository.
 
 See [GITHUB_RELEASE_AUTOMATION_PLAN.md](GITHUB_RELEASE_AUTOMATION_PLAN.md) for the complete rollout
