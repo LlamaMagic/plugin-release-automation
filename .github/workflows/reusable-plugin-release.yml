@@ -407,14 +407,15 @@ jobs:
             echo "::error::Webhook configuration is incomplete."
             exit 1
           fi
-          curl \
-            --fail-with-body \
-            --silent \
-            --show-error \
-            --max-time 30 \
-            --request POST \
-            --data-urlencode "secret=${UPDATE_WEBHOOK_KEY}" \
-            "http://update.ffxivbots.com:8080/Webhooks?product=${PRODUCT_NAME}"
+            curl \
+              --fail-with-body \
+              --silent \
+              --show-error \
+              --max-time 30 \
+              --request POST \
+              --data "secret=${UPDATE_WEBHOOK_KEY}" \
+              --location \
+              "http://update.ffxivbots.com:8080/Webhooks?product=${PRODUCT_NAME}"
 
       - name: Write release summary
         shell: bash
