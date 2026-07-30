@@ -241,7 +241,8 @@ runs:
           --show-error \
           --max-time 30 \
           --request POST \
-          --data-urlencode "secret=${UPDATE_WEBHOOK_KEY}" \
+          --data "secret=${UPDATE_WEBHOOK_KEY}" \
+          --location \
           "http://update.ffxivbots.com:8080/Webhooks?product=${PRODUCT_NAME}"
 
     - name: Write release summary
